@@ -1,0 +1,22 @@
+[project]
+name = "soc-openenv"
+version = "0.1.0"
+description = "Deterministic SOC simulation environment for OpenEnv"
+authors = [{name = "Team RookieX"}]
+
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "requests",
+    "openai",
+    "python-dotenv",
+    "openenv-core>=0.2.0"
+]
+
+[project.scripts]
+server = "server.app:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

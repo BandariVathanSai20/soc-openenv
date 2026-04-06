@@ -1,0 +1,66 @@
+name: soc-openenv
+
+description: >
+  AI-powered Security Operations Center (SOC) simulation environment
+  designed to evaluate agent-based decision-making in cybersecurity scenarios.
+  The environment models real-world attack patterns including brute-force,
+  SQL injection, reconnaissance, and privilege escalation.
+
+version: "1.0"
+
+observation_space:
+  type: object
+  properties:
+    timestamp:
+      type: string
+    event:
+      type: string
+    ip:
+      type: string
+    query:
+      type: string
+    file:
+      type: string
+    level:
+      type: string
+
+action_space:
+  type: string
+  enum:
+    - normal
+    - suspicious
+    - attack
+
+reward_range: [-2.0, 1.5]
+
+reward_description: >
+  Rewards are assigned based on detection accuracy, early identification of attacks,
+  and penalties for false positives or missed threats. Partial rewards are given
+  for identifying suspicious activity.
+
+tasks:
+  - name: easy
+    description: >
+      Detect brute-force login attempts based on repeated failed logins.
+
+  - name: medium
+    description: >
+      Identify SQL injection attempts within mixed normal and malicious traffic.
+
+  - name: hard
+    description: >
+      Detect multi-stage cyber attacks involving reconnaissance (port scanning),
+      brute-force login attempts, exploitation, and privilege escalation under noisy conditions.
+
+environment_features:
+  - multi-step attack simulation
+  - context-aware detection
+  - adaptive attacker behavior
+  - realistic SOC logs
+
+evaluation:
+  metrics:
+    - accuracy
+    - false_positive_rate
+    - missed_attack_rate
+    - early_detection_bonus
