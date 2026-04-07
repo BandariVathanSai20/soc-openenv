@@ -234,11 +234,11 @@ export HF_TOKEN=your_token_here
 
 | Task   | Score |
 | ------ | ----- |
-| Easy   | 0.89  |
-| Medium | 0.99  |
-| Hard   | 0.94  |
+| Easy   | 0.86  |
+| Medium | 0.98  |
+| Hard   | 0.90  |
 
-**Overall Score: ~0.94–0.95**
+**Overall Score: ~0.91–0.93**
 Note: Scores are strictly bounded within (0, 1) to comply with OpenEnv evaluation constraints.
 
 ---
