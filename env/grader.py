@@ -31,26 +31,24 @@ def detect_ground_truth(log, failed_login_count, suspicious_ips):
 
 def evaluate_step(action, actual):
     """
-    Step score (0 → 1, but not exact 0 or 1)
+    Step score STRICTLY inside (0,1)
     """
 
     if action == actual:
-        return 0.99   # changed from 1.0
+        return 0.95   # reduced from 0.99
 
-    # Partial detection
     if action == "suspicious" and actual == "attack":
         return 0.5
 
-    # All wrong cases
-    return 0.01   # changed from 0.0
+    return 0.05   # never 0
 
 
 def evaluate_episode(actions, logs):
     """
-    Deterministic episode scoring (STRICTLY between 0 and 1)
+    Deterministic episode scoring STRICTLY in (0,1)
     """
 
-    total_score = 0
+    total_score = 0.0
     total_steps = len(logs)
 
     failed_login_count = {}
@@ -66,20 +64,27 @@ def evaluate_episode(actions, logs):
 
         step_score = evaluate_step(action, actual)
 
-        # Early attack detection bonus
+        # Controlled bonus
         if actual == "attack" and action == "attack" and i <= 2:
-            step_score += 0.2
+            step_score += 0.1   # reduced from 0.2
             early_detected = True
+
+        # HARD CAP per step
+        if step_score >= 1.0:
+            step_score = 0.99
 
         total_score += step_score
 
     final_score = total_score / total_steps
 
-    # Small global bonus
+    # Controlled global bonus
     if early_detected:
-        final_score += 0.05
+        final_score += 0.02   # reduced from 0.05
 
     # STRICT CLAMP
-    final_score = max(0.01, min(final_score, 0.99))
+    if final_score >= 1.0:
+        final_score = 0.99
+    elif final_score <= 0.0:
+        final_score = 0.01
 
     return final_score
