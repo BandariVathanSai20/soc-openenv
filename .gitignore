@@ -1,35 +1,57 @@
+# ------------------------------
 # Python
+# ------------------------------
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
+*.pyd
+*.so
 
-# Env files (secrets)
+# ------------------------------
+# Virtual Environments
+# ------------------------------
+env/
+venv/
+.venv/
+
+# ------------------------------
+# Environment Variables / Secrets
+# ------------------------------
 .env
 .env.*
 
-# VS Code
-.vscode/
-
-# OS files
-.DS_Store
-
-# Logs
-*.log
-
-# Cache
-*.cache/
-
-# Python build
+# ------------------------------
+# Build & Distribution
+# ------------------------------
 build/
 dist/
 *.egg-info/
 
-# Virtual environments 
-venv/
-.venv/
+# ------------------------------
+# Cache & Logs
+# ------------------------------
+.pytest_cache/
+.cache/
+*.log
 
+# ------------------------------
+# IDE / Editor
+# ------------------------------
+.vscode/
+.idea/
+
+# ------------------------------
+# OS Files
+# ------------------------------
+.DS_Store
+Thumbs.db
+
+# ------------------------------
 # Docker
+# ------------------------------
 *.tar
 
-# Secrets
+# ------------------------------
+# Security Keys
+# ------------------------------
 *.key
