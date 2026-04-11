@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Env files (secrets)
+.env
+.env.*
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
+
+# Cache
+*.cache/
+
+# Python build
+build/
+dist/
+*.egg-info/
+
+# Virtual environments 
+venv/
+.venv/
+
+# Docker
+*.tar
+
+# Secrets
+*.key
