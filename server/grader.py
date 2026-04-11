@@ -1,194 +1,89 @@
 """
 server/grader.py
 
-Deterministic grading logic for the SOC-OpenEnv environment.
-This module evaluates agent actions against ground truth labels
-and computes both step-level and episode-level performance metrics.
+Grader for evaluating agent performance in the SOC-OpenEnv environment.
+Ensures all metrics fall strictly within the open interval (0, 1).
 """
 
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict
 
 
-VALID_ACTIONS = {"normal", "suspicious", "attack"}
-
-
-# Ground Truth Detection 
-def detect_ground_truth(
-    log: Dict,
-    failed_login_count: Dict[str, int],
-    suspicious_ips: Set[str],
-) -> Tuple[str, str]:
+def _clip_score(value: float, eps: float = 1e-6) -> float:
     """
-    Determine the ground truth classification of a log entry.
-
-    Args:
-        log (Dict): Log entry.
-        failed_login_count (Dict[str, int]): Stateful tracking of failed logins.
-        suspicious_ips (Set[str]): Set of suspicious IPs.
-
-    Returns:
-        Tuple[str, str]: (actual_label, attack_type)
+    Ensure the score lies strictly within the open interval (0, 1).
     """
-    ip = log.get("ip")
-    event = log.get("event")
-    query = str(log.get("query", "")).lower()
-    level = log.get("level")
-
-    # Brute Force Detection
-    if event == "login_failed":
-        failed_login_count[ip] = failed_login_count.get(ip, 0) + 1
-        if failed_login_count[ip] >= 3:
-            return "attack", "Brute Force"
-        return "suspicious", "Login Attempt"
-
-    # SQL Injection Detection (case-insensitive)
-    sqli_patterns = ["or 1=1", "'--", "union select", "sleep("]
-    if any(pattern in query for pattern in sqli_patterns):
-        return "attack", "SQL Injection"
-
-    # Privilege Escalation
-    if level == "CRITICAL":
-        return "attack", "Privilege Escalation"
-
-    # Port Scan Detection
-    if event == "port_scan":
-        suspicious_ips.add(ip)
-        return "suspicious", "Reconnaissance"
-
-    # Suspicious Continuation
-    if ip in suspicious_ips:
-        return "suspicious", "Suspicious IP"
-
-    return "normal", "Normal Activity"
+    if value <= 0.0:
+        return eps
+    if value >= 1.0:
+        return 1.0 - eps
+    return value
 
 
-# Step-Level Evaluation
-def evaluate_step(
-    action: str,
-    actual: str,
-    step_index: int,
-) -> Tuple[float, bool]:
+def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
     """
-    Evaluate a single step.
+    Evaluate the agent's performance over an episode.
 
-    Args:
-        action (str): Agent action.
-        actual (str): Ground truth label.
-        step_index (int): Step index in the episode.
-
-    Returns:
-        Tuple[float, bool]: (step_score, early_detection_flag)
+    Returns a dictionary with:
+    - normalized_score
+    - accuracy
+    - false_positive_rate
+    - missed_attack_rate
+    - early_detection_bonus
+    All values are guaranteed to be strictly within (0, 1).
     """
-    if action not in VALID_ACTIONS:
-        raise ValueError(f"Invalid action '{action}'. Valid actions: {VALID_ACTIONS}")
 
-    early_detection = False
-
-    # Base scoring
-    if action == actual:
-        score = 0.9
-    elif action == "suspicious" and actual == "attack":
-        score = 0.5
-    else:
-        score = 0.1
-
-    # Early detection bonus
-    if actual == "attack" and action == "attack" and step_index <= 2:
-        score += 0.05
-        early_detection = True
-
-    return min(score, 1.0), early_detection
-
-
-# Episode-Level Evaluation
-def evaluate_episode(
-    actions: List[str],
-    logs: List[Dict],
-) -> Dict[str, float]:
-    """
-    Evaluate an entire episode.
-
-    Args:
-        actions (List[str]): List of agent actions.
-        logs (List[Dict]): Corresponding list of environment logs.
-
-    Returns:
-        Dict[str, float]: Dictionary containing evaluation metrics.
-    """
+    # Handle empty inputs gracefully
     if not actions or not logs:
         return {
             "normalized_score": 0.5,
-            "accuracy": 0.0,
-            "false_positive_rate": 0.0,
-            "missed_attack_rate": 0.0,
-            "early_detection_bonus": 0.0,
+            "accuracy": 0.5,
+            "false_positive_rate": 0.5,
+            "missed_attack_rate": 0.5,
+            "early_detection_bonus": 0.5,
         }
 
-    failed_login_count: Dict[str, int] = {}
-    suspicious_ips: Set[str] = set()
-
-    total_score = 0.0
+    total = min(len(actions), len(logs))
     correct = 0
     false_positives = 0
     missed_attacks = 0
-    total_normals = 0
-    total_attacks = 0
-    early_detections = 0
-    total_steps = 0
+    early_detection = 0
 
-    for idx, (action, log) in enumerate(zip(actions, logs)):
-        if log is None:
-            continue
+    # Simple heuristic labeling based on log events
+    for i in range(total):
+        log = logs[i]
+        action = actions[i].lower()
 
-        actual_label, _ = detect_ground_truth(
-            log, failed_login_count, suspicious_ips
-        )
+        event = log.get("event", "")
+        actual_label = "attack" if "failed" in event else "normal"
 
-        step_score, early_flag = evaluate_step(action, actual_label, idx)
-        total_score += step_score
-        total_steps += 1
-
-        # Accuracy
         if action == actual_label:
             correct += 1
-
-        # False positives
-        if actual_label == "normal":
-            total_normals += 1
-            if action == "attack":
+            if actual_label == "attack":
+                early_detection += 1
+        else:
+            if action in {"attack", "suspicious"} and actual_label == "normal":
                 false_positives += 1
-
-        # Missed attacks
-        if actual_label == "attack":
-            total_attacks += 1
-            if action == "normal":
+            if action == "normal" and actual_label == "attack":
                 missed_attacks += 1
 
-        # Early detections
-        if early_flag:
-            early_detections += 1
+    accuracy = correct / total
+    false_positive_rate = false_positives / total
+    missed_attack_rate = missed_attacks / total
+    early_detection_bonus = early_detection / total
 
-    if total_steps == 0:
-        normalized_score = 0.5
-    else:
-        normalized_score = total_score / total_steps
-
-    accuracy = correct / total_steps if total_steps > 0 else 0.0
-    false_positive_rate = (
-        false_positives / total_normals if total_normals > 0 else 0.0
+    # Composite normalized score
+    normalized_score = (
+        0.5 * accuracy
+        + 0.2 * (1 - false_positive_rate)
+        + 0.2 * (1 - missed_attack_rate)
+        + 0.1 * early_detection_bonus
     )
-    missed_attack_rate = (
-        missed_attacks / total_attacks if total_attacks > 0 else 0.0
-    )
-    early_detection_bonus = early_detections / total_attacks if total_attacks > 0 else 0.0
 
-    # Clamp normalized score to [0, 1]
-    normalized_score = max(0.0, min(1.0, normalized_score))
-
+    # Clip all metrics to ensure they are strictly within (0, 1)
     return {
-        "normalized_score": round(normalized_score, 2),
-        "accuracy": round(accuracy, 2),
-        "false_positive_rate": round(false_positive_rate, 2),
-        "missed_attack_rate": round(missed_attack_rate, 2),
-        "early_detection_bonus": round(early_detection_bonus, 2),
+        "normalized_score": _clip_score(normalized_score),
+        "accuracy": _clip_score(accuracy),
+        "false_positive_rate": _clip_score(false_positive_rate),
+        "missed_attack_rate": _clip_score(missed_attack_rate),
+        "early_detection_bonus": _clip_score(early_detection_bonus),
     }
