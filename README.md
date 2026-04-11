@@ -104,25 +104,47 @@ Each step returns a structured log entry containing:
                                                persistence activities
   ------------------------------------------------------------------------
 
-## 🏆 Reward Function
+## 📊 Grading Scheme
 
-  Condition                                    Reward
-  -------------------------------------------- --------
-  Correct classification                       +1.0
-  Suspicious classification (partial credit)   +0.9
-  Missed attack                                -2.0
-  False positive                               -1.5
-  Neutral/ambiguous event                      0.0
+The SOC-OpenEnv environment uses a deterministic grading mechanism:
 
-Scores are normalized to the range **\[0, 1\]** for OpenEnv evaluation.
+| Scenario | Score |
+|---------|------|
+| Correct classification | 0.90 |
+| Suspicious instead of attack | 0.50 |
+| Incorrect classification | 0.10 |
+| Early attack detection (≤ step 2) | +0.05 |
+
+The final **normalized score** is the average of all step scores, clamped to the range [0, 1].
 
 ## 📊 Baseline Performance
 
-  Task     Normalized Score
-  -------- ------------------
-  Easy     0.90
-  Medium   0.90
-  Hard     0.90
+The baseline agent was evaluated across all difficulty levels with the following deterministic scores:
+
+| Difficulty | Score |
+|-----------|------|
+| Easy      | 0.91 |
+| Medium    | 0.75 |
+| Hard      | 0.90 |
+
+These scores demonstrate the environment’s ability to differentiate agent performance across varying levels of complexity.
+
+## Reward and Evaluation Design
+
+SOC-OpenEnv follows the architectural principles of official OpenEnv environments such as TBench2, CARLA, and REPL.
+
+### Environment Rewards
+- Returned by the `/step` endpoint.
+- Provide immediate feedback to the agent.
+- Include bonuses for early detection and penalties for false positives or missed attacks.
+- Suitable for reinforcement learning and agent training.
+
+### Grader Evaluation
+- Implemented in `server/grader.py`.
+- Computes standardized metrics such as normalized score, accuracy, false positives, and missed attacks.
+- The final benchmark score is normalized to the range [0, 1] and is used for evaluation.
+
+This separation ensures both expressive agent feedback and fair benchmarking.
 
 ## 🛠️ Installation
 
