@@ -1,62 +1,42 @@
-"""
-server/grader.py
-
-Final grader for the SOC-OpenEnv environment.
-Ensures all returned metrics are strictly within the open interval (0, 1),
-as required by the OpenEnv Hackathon validator.
-"""
+# server/grader.py
 
 from typing import List, Dict
 
-EPS = 1e-6
+EPS = 1e-3  # Ensures values are strictly within (0, 1)
 
-def _clip_open_interval(value: float) -> float:
+
+def _clip(value: float) -> float:
+    """Clip values to the open interval (0, 1)."""
     if value <= 0.0:
         return EPS
     if value >= 1.0:
         return 1.0 - EPS
-    return value
+    return float(value)
 
 
-def _detect_attack(
-    log: Dict,
-    failed_login_count: Dict[str, int],
-    suspicious_ips: set
-) -> str:
-    """
-    Mirror the SOCEnv.detect_attack() logic to determine
-    the ground-truth label for each log entry.
-    """
+def _detect_attack(log: Dict, failed_login_count: Dict[str, int], suspicious_ips: set) -> str:
+    """Replicates SOCEnv's ground-truth logic."""
     event = str(log.get("event", "")).lower()
     level = str(log.get("level", "")).lower()
     message = str(log).lower()
     ip = log.get("ip", "unknown")
 
-    # SQL Injection
-    if "or 1=1" in message:
+    if "or 1=1" in message or level == "critical":
         return "attack"
 
-    # Critical severity
-    if level == "critical":
-        return "attack"
-
-    # Brute-force login detection
     if event == "login_failed":
         failed_login_count[ip] = failed_login_count.get(ip, 0) + 1
         if failed_login_count[ip] >= 3:
             return "attack"
         return "suspicious"
 
-    # Port scan detection
     if event == "port_scan":
         suspicious_ips.add(ip)
         return "suspicious"
 
-    # Continued suspicious behavior
     if ip in suspicious_ips:
         return "suspicious"
 
-    # Normal activity
     if event == "login_success":
         return "normal"
 
@@ -64,12 +44,8 @@ def _detect_attack(
 
 
 def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
-    """
-    Evaluate the agent's performance over an episode and return metrics
-    strictly within the open interval (0, 1).
-    """
+    """Evaluate episode performance with all metrics strictly in (0, 1)."""
 
-    # Handle empty inputs gracefully
     if not actions or not logs:
         mid = 0.5
         return {
@@ -92,11 +68,7 @@ def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
 
     for i in range(total):
         action = actions[i].lower()
-        actual = _detect_attack(
-            logs[i],
-            failed_login_count,
-            suspicious_ips
-        )
+        actual = _detect_attack(logs[i], failed_login_count, suspicious_ips)
 
         if actual == "attack":
             attack_count += 1
@@ -111,7 +83,6 @@ def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
             if action == "normal" and actual == "attack":
                 missed_attacks += 1
 
-    # Raw metrics
     accuracy = correct / total
     false_positive_rate = false_positives / total
     missed_attack_rate = (
@@ -119,7 +90,6 @@ def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
     )
     early_detection_bonus = early_detection / total
 
-    # Composite normalized score
     normalized_score = (
         0.6 * accuracy
         + 0.15 * (1 - false_positive_rate)
@@ -127,11 +97,11 @@ def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
         + 0.10 * early_detection_bonus
     )
 
-    # Ensure all metrics are strictly within (0, 1)
+    # Final clipping to ensure strict bounds
     return {
-        "normalized_score": _clip_open_interval(normalized_score),
-        "accuracy": _clip_open_interval(accuracy),
-        "false_positive_rate": _clip_open_interval(false_positive_rate),
-        "missed_attack_rate": _clip_open_interval(missed_attack_rate),
-        "early_detection_bonus": _clip_open_interval(early_detection_bonus),
+        "normalized_score": _clip(normalized_score),
+        "accuracy": _clip(accuracy),
+        "false_positive_rate": _clip(false_positive_rate),
+        "missed_attack_rate": _clip(missed_attack_rate),
+        "early_detection_bonus": _clip(early_detection_bonus),
     }
