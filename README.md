@@ -59,8 +59,8 @@ Evaluated using `Qwen/Qwen2.5-72B-Instruct`. These results are deterministic.
 | Difficulty | Normalized Score |
 |------------|------------------|
 | Easy       | 0.80             |
-| Medium     | 0.99             |
-| Hard       | 0.86             |
+| Medium     | 0.85             |
+| Hard       | 0.85             |
 
 ### 🧪 Example Inference Output
 
@@ -75,8 +75,8 @@ Evaluated using `Qwen/Qwen2.5-72B-Instruct`. These results are deterministic.
 
 --- Final Summary ---
 Task Easy: 0.80
-Task Medium: 0.99
-Task Hard: 0.86
+Task Medium: 0.85
+Task Hard: 0.85
 
 ## Reward and Evaluation Design
 

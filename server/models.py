@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict
 
 class Action(BaseModel):
     action: str
@@ -17,12 +17,15 @@ class State(BaseModel):
     step: int
     total_reward: float
     difficulty: str
+    # Added for consistency
+    normalized_score: float = 0.5
 
 class Reward(BaseModel):
     value: float
 
 class Info(BaseModel):
     actual_label: Optional[str] = "normal"
+    attack_type: Optional[str] = "none"
     normalized_score: float = 0.5
     accuracy: float = 0.5
     false_positive_rate: float = 0.5
