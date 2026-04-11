@@ -6,9 +6,10 @@ Provides endpoints for resetting the environment, taking actions,
 retrieving the current state, and performing health checks.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 import uvicorn
 import os
 import logging
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="SOC OpenEnv API",
     version="1.0",
-    description="AI-powered Security Operations Center simulation environment."
+    description="AI-powered Security Operations Center simulation environment.",
 )
 
 # Enable CORS for Swagger and external clients
@@ -50,7 +51,7 @@ env = SOCEnv(difficulty=DEFAULT_DIFFICULTY)
 
 # Request Model for Reset Endpoint
 class ResetRequest(BaseModel):
-    difficulty: str = "easy"
+    difficulty: Optional[str] = "easy"
 
 
 # Health Check Endpoints
@@ -68,13 +69,25 @@ def health():
 
 # Reset Endpoint
 @app.post("/reset", response_model=ResetResponse)
-def reset(request: ResetRequest):
+def reset(request: Optional[ResetRequest] = Body(default=None)):
     """
     Reset the environment with the specified difficulty.
+
+    This endpoint accepts an optional JSON body:
+        { "difficulty": "easy" | "medium" | "hard" }
+
+    If no body is provided, it defaults to "easy".
+    This behavior ensures compatibility with the OpenEnv validator,
+    which sends a POST request without a request body.
     """
     global env
 
-    difficulty = request.difficulty.lower()
+    # Determine difficulty
+    difficulty = DEFAULT_DIFFICULTY
+    if request and request.difficulty:
+        difficulty = request.difficulty.lower()
+
+    # Validate difficulty
     if difficulty not in {"easy", "medium", "hard"}:
         raise HTTPException(
             status_code=400,
@@ -82,6 +95,8 @@ def reset(request: ResetRequest):
         )
 
     logger.info(f"Resetting environment with difficulty: {difficulty}")
+
+    # Reinitialize environment
     env = SOCEnv(difficulty=difficulty)
     obs = env.reset()
 
