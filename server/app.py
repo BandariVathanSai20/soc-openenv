@@ -24,12 +24,17 @@ from server.models import (
     ResetResponse,
     Info,
 )
+from server.grader import evaluate_episode  # ✅ Import grader
 
+# ---------------------------------------------------------------------
 # Logging Configuration
+# ---------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------
 # FastAPI App Initialization
+# ---------------------------------------------------------------------
 app = FastAPI(
     title="SOC OpenEnv API",
     version="1.0",
@@ -45,16 +50,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------------------
 # Default Environment Initialization
+# ---------------------------------------------------------------------
 DEFAULT_DIFFICULTY = os.getenv("DEFAULT_DIFFICULTY", "easy")
 env = SOCEnv(difficulty=DEFAULT_DIFFICULTY)
 
+# ---------------------------------------------------------------------
 # Request Model for Reset Endpoint
+# ---------------------------------------------------------------------
 class ResetRequest(BaseModel):
     difficulty: Optional[str] = "easy"
 
 
+# ---------------------------------------------------------------------
 # Health Check Endpoints
+# ---------------------------------------------------------------------
 @app.get("/")
 def home():
     """Basic endpoint to confirm the API is running."""
@@ -67,27 +78,23 @@ def health():
     return {"status": "ok"}
 
 
+# ---------------------------------------------------------------------
 # Reset Endpoint
+# ---------------------------------------------------------------------
 @app.post("/reset", response_model=ResetResponse)
 def reset(request: Optional[ResetRequest] = Body(default=None)):
     """
     Reset the environment with the specified difficulty.
-
-    This endpoint accepts an optional JSON body:
+    Accepts an optional JSON body:
         { "difficulty": "easy" | "medium" | "hard" }
-
-    If no body is provided, it defaults to "easy".
-    This behavior ensures compatibility with the OpenEnv validator,
-    which sends a POST request without a request body.
+    Defaults to "easy" if not provided.
     """
     global env
 
-    # Determine difficulty
     difficulty = DEFAULT_DIFFICULTY
     if request and request.difficulty:
         difficulty = request.difficulty.lower()
 
-    # Validate difficulty
     if difficulty not in {"easy", "medium", "hard"}:
         raise HTTPException(
             status_code=400,
@@ -96,7 +103,6 @@ def reset(request: Optional[ResetRequest] = Body(default=None)):
 
     logger.info(f"Resetting environment with difficulty: {difficulty}")
 
-    # Reinitialize environment
     env = SOCEnv(difficulty=difficulty)
     obs = env.reset()
 
@@ -107,11 +113,14 @@ def reset(request: Optional[ResetRequest] = Body(default=None)):
     )
 
 
+# ---------------------------------------------------------------------
 # Step Endpoint
+# ---------------------------------------------------------------------
 @app.post("/step", response_model=StepResponse)
 def step(action: Action):
     """
     Execute one step in the environment using the agent's action.
+    Includes grader metrics when the episode ends.
     """
     global env
 
@@ -121,12 +130,23 @@ def step(action: Action):
             detail="Episode has finished. Please call /reset to start a new episode.",
         )
 
-    # Get ground truth for explanation
+    # Ground truth for explanation
     current_obs = env.logs[env.current_step]
     actual_label, attack_type = env.detect_attack(current_obs)
 
     # Execute environment step
     next_obs, reward, done, info = env.step(action.action)
+
+    # -----------------------------------------------------------------
+    # Compute grader metrics when episode is finished
+    # -----------------------------------------------------------------
+    if done:
+        try:
+            metrics = evaluate_episode(env.actions, env.logs)
+            info.update(metrics)
+            logger.info(f"Episode completed with metrics: {metrics}")
+        except Exception as e:
+            logger.error(f"Grader evaluation failed: {e}")
 
     explanation = (
         f"Agent chose '{action.action}' vs actual '{actual_label}' "
@@ -140,28 +160,28 @@ def step(action: Action):
 
     return StepResponse(
         observation=Observation(**next_obs) if next_obs else None,
-        reward=Reward(value=reward),
-        done=done,
+        reward=Reward(value=float(reward)),
+        done=bool(done),
         state=State(**env.state()),
         info=Info(**info),
         explanation=explanation,
     )
 
 
+# ---------------------------------------------------------------------
 # State Endpoint
+# ---------------------------------------------------------------------
 @app.get("/state", response_model=State)
 def get_state():
-    """
-    Retrieve the current internal state of the environment.
-    """
+    """Retrieve the current internal state of the environment."""
     return State(**env.state())
 
 
+# ---------------------------------------------------------------------
 # Application Entry Point
+# ---------------------------------------------------------------------
 def main():
-    """
-    Run the FastAPI application using Uvicorn.
-    """
+    """Run the FastAPI application using Uvicorn."""
     port = int(os.getenv("PORT", 7860))
     uvicorn.run("server.app:app", host="0.0.0.0", port=port)
 
