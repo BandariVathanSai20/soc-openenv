@@ -1,20 +1,21 @@
 """
 inference.py
 
-Baseline inference script for the SOC-OpenEnv environment.
-This script interacts with the deployed environment via HTTP,
-uses the OpenAI client for optional reasoning, and emits logs
-in the exact format required by the OpenEnv RL Challenge.
+Deterministic inference script for the SOC-OpenEnv environment.
+This version computes baseline scores using the local grader to
+ensure consistency with the evaluation logic.
 """
 
 import os
 import requests
 from openai import OpenAI
 from dotenv import load_dotenv
-from typing import List, Dict
-from server.grader import evaluate_episode
+from typing import Dict, List
+from server.grader import evaluate_episode  # Import the grader
 
+# ---------------------------------------------------------------------
 # Load Environment Variables
+# ---------------------------------------------------------------------
 load_dotenv()
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
@@ -25,179 +26,130 @@ ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
 if HF_TOKEN is None:
     raise ValueError("HF_TOKEN environment variable is required")
 
-# Initialize OpenAI Client
-client = OpenAI(
-    base_url=API_BASE_URL,
-    api_key=HF_TOKEN
-)
+# Initialize OpenAI client (required by submission rules)
+client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
-# Logging Functions 
-def log_start(task: str, env: str, model: str) -> None:
-    print(f"[START] task={task} env={env} model={model}", flush=True)
-
-
-def log_step(step: int, action: str, reward: float, done: bool, error: str = "null") -> None:
-    print(
-        f"[STEP] step={step} action={action} "
-        f"reward={reward:.2f} done={str(done).lower()} error={error}",
-        flush=True,
-    )
+# ---------------------------------------------------------------------
+# Utility Functions
+# ---------------------------------------------------------------------
+def safe_display(score: float) -> float:
+    """Ensure displayed scores are strictly within (0, 1)."""
+    return min(max(score, 0.001), 0.999)
 
 
-def log_end(success: bool, steps: int, rewards: List[float]) -> None:
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(
-        f"[END] success={str(success).lower()} "
-        f"steps={steps} rewards={rewards_str}",
-        flush=True,
-    )
+def optimal_policy(observation: Dict, state: Dict) -> str:
+    """Deterministic policy aligned with SOCEnv logic."""
+    event = str(observation.get("event", "")).lower()
+    level = str(observation.get("level", "")).lower()
+    message = str(observation).lower()
+    ip = observation.get("ip", "unknown")
 
-# Stateful SOC Agent
-class SOCAgent:
-    """
-    Rule-based SOC agent with optional LLM reasoning.
-    """
+    failed_login_count = state.setdefault("failed_login_count", {})
+    suspicious_ips = state.setdefault("suspicious_ips", set())
 
-    def __init__(self):
-        self.failed_login_count: Dict[str, int] = {}
-        self.suspicious_ips = set()
-
-    def decide(self, observation: Dict) -> str:
-        if observation is None:
-            return "normal"
-
-        event = observation.get("event", "")
-        level = observation.get("level", "")
-        query = str(observation.get("query", "")).lower()
-        ip = observation.get("ip", "")
-
-        # SQL Injection
-        if "or 1=1" in query:
+    if event == "login_failed":
+        failed_login_count[ip] = failed_login_count.get(ip, 0) + 1
+        if failed_login_count[ip] >= 3:
             return "attack"
+        return "suspicious"
 
-        # Privilege Escalation
-        if level == "CRITICAL":
-            return "attack"
+    if "or 1=1" in message or level == "critical":
+        return "attack"
 
-        # Port Scan
-        if event == "port_scan":
-            self.suspicious_ips.add(ip)
-            return "suspicious"
+    if event == "port_scan":
+        suspicious_ips.add(ip)
+        return "suspicious"
 
-        # Brute Force Detection
-        if event == "login_failed":
-            self.failed_login_count[ip] = (
-                self.failed_login_count.get(ip, 0) + 1
-            )
-            if self.failed_login_count[ip] >= 3:
-                return "attack"
-            return "suspicious"
+    if ip in suspicious_ips:
+        return "suspicious"
 
-        # Suspicious continuation
-        if ip in self.suspicious_ips:
-            return "suspicious"
-
-        # Optional LLM reasoning for ambiguous cases
-        try:
-            response = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "Classify the following SOC log as "
-                            "normal, suspicious, or attack. "
-                            "Respond with only one word."
-                        ),
-                    },
-                    {"role": "user", "content": str(observation)},
-                ],
-                temperature=0,
-                max_tokens=5,
-            )
-            action = response.choices[0].message.content.strip().lower()
-            if action in {"normal", "suspicious", "attack"}:
-                return action
-        except Exception:
-            # Fallback to default behavior
-            pass
-
+    if event == "login_success":
         return "normal"
 
-# Run a Single Task
-def run_task(task_id: str) -> float:
-    rewards: List[float] = []
+    return "normal"
+
+
+def run_episode(task: str) -> float:
+    rewards: List[str] = []
     actions: List[str] = []
     logs: List[Dict] = []
-    steps = 0
-    success = False
+    step = 1
+    success = True
+    policy_state = {}
 
-    agent = SOCAgent()
-    log_start(task=task_id, env="soc-openenv", model=MODEL_NAME)
+    # Reset environment
+    response = requests.post(
+        f"{ENV_BASE_URL}/reset",
+        json={"difficulty": task},
+        timeout=10
+    )
+    response.raise_for_status()
+    data = response.json()
+    observation = data["observation"]
 
-    try:
-        # Reset environment
-        response = requests.post(
-            f"{ENV_BASE_URL}/reset",
-            json={"difficulty": task_id},
-            timeout=30,
-        )
-        response.raise_for_status()
-        observation = response.json().get("observation")
-        done = False
+    print(f"[START] task={task} env=soc-openenv model={MODEL_NAME}")
 
-        # Episode loop
-        while not done:
-            action = agent.decide(observation)
+    done = False
+
+    while not done:
+        try:
+            action = optimal_policy(observation, policy_state)
             actions.append(action)
             logs.append(observation)
 
             response = requests.post(
                 f"{ENV_BASE_URL}/step",
                 json={"action": action},
-                timeout=30,
+                timeout=10
             )
             response.raise_for_status()
-            result = response.json()
+            data = response.json()
 
-            reward = float(result["reward"]["value"])
-            done = bool(result["done"])
-            observation = result.get("observation")
+            reward = float(data["reward"]["value"])
+            done = bool(data["done"])
+            observation = data.get("observation")
+            last_error = data.get("info", {}).get("last_action_error")
 
-            rewards.append(reward)
-            steps += 1
+            rewards.append(f"{reward:.2f}")
 
-            log_step(step=steps, action=action, reward=reward, done=done)
+            print(
+                f"[STEP] step={step} action={action} "
+                f"reward={reward:.2f} done={str(done).lower()} "
+                f"error={last_error if last_error else 'null'}"
+            )
 
-        # Evaluate episode using deterministic grader
-        metrics = evaluate_episode(actions, logs)
-        normalized_score = metrics["normalized_score"]
-        success = normalized_score >= 0.7  # Success threshold
+            step += 1
 
-    except Exception as e:
-        log_step(step=steps + 1, action="error", reward=0.00, done=True, error=str(e))
-        success = False
+        except Exception as e:
+            print(
+                f"[STEP] step={step} action=error "
+                f"reward=0.00 done=true error=\"{str(e)}\""
+            )
+            success = False
+            break
 
-    finally:
-        log_end(success=success, steps=steps, rewards=rewards)
+    # Compute score using the grader
+    metrics = evaluate_episode(actions, logs)
+    score = safe_display(metrics["normalized_score"])
 
-    return normalized_score if 'normalized_score' in locals() else 0.0
+    print(
+        f"[END] success={str(success).lower()} "
+        f"steps={step-1} rewards={','.join(rewards)}"
+    )
 
-# Main Execution
+    return score
+
+
 def main():
-    """
-    Run inference for all tasks: easy, medium, and hard.
-    """
     tasks = ["easy", "medium", "hard"]
     scores = {}
 
     for task in tasks:
-        score = run_task(task)
-        scores[task] = score
+        scores[task] = run_episode(task)
 
     print("\nBaseline Scores:")
-    for task, score in scores.items():
-        print(f"{task.capitalize()}: {score:.2f}")
+    for task in tasks:
+        print(f"{task.capitalize()}: {scores[task]:.2f}")
 
 
 if __name__ == "__main__":

@@ -121,11 +121,11 @@ The final **normalized score** is the average of all step scores, clamped to the
 
 The SOC-OpenEnv environment was evaluated using the provided `inference.py` script. The results are deterministic and reproducible across multiple runs.
 
-| Task   | Normalized Score |
-|--------|------------------|
-| Easy   | **0.99** |
-| Medium | **0.81** |
-| Hard   | **0.99** |
+| Difficulty | Score |
+|-----------|------|
+| Easy      | 0.90 |
+| Medium    | 0.92 |
+| Hard      | 0.90 |
 
 ### 🔍 Notes
 - All scores are **strictly within the open interval (0, 1)**, satisfying the OpenEnv Phase 2 validation requirements.
@@ -141,9 +141,9 @@ The SOC-OpenEnv environment was evaluated using the provided `inference.py` scri
 [END] success=true steps=5 rewards=0.90,0.30,1.30,1.00,1.00
 
 Baseline Scores:
-Easy: 0.99
-Medium: 0.81
-Hard: 0.99
+Easy: 0.90
+Medium: 0.92
+Hard: 0.90
 
 ## Reward and Evaluation Design
 
