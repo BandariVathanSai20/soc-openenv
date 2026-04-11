@@ -1,0 +1,28 @@
+{
+  "environment": "soc-openenv",
+  "version": "1.0.0",
+  "description": "Scenario configuration for SOC-OpenEnv tasks.",
+  "scenarios": [
+    {
+      "id": "soc-easy-bruteforce",
+      "difficulty": "easy",
+      "name": "Brute Force Detection",
+      "description": "Detect repeated failed login attempts from the same IP address.",
+      "max_steps": 10
+    },
+    {
+      "id": "soc-medium-sqli",
+      "difficulty": "medium",
+      "name": "SQL Injection Detection",
+      "description": "Identify SQL injection attempts within mixed traffic logs.",
+      "max_steps": 15
+    },
+    {
+      "id": "soc-hard-apt",
+      "difficulty": "hard",
+      "name": "Multi-Stage APT Detection",
+      "description": "Detect complex multi-stage cyber attacks involving reconnaissance and privilege escalation.",
+      "max_steps": 20
+    }
+  ]
+}

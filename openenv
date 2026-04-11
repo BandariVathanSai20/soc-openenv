@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+"/mnt/c/Users/vatha/OneDrive/Desktop/soc-openenv/.venv/Scripts/openenv.exe" "$@"

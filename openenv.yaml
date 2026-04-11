@@ -1,0 +1,107 @@
+name: soc-openenv
+version: "1.0.0"
+author: "Team RookieX"
+license: "MIT"
+description: >
+  AI-powered Security Operations Center (SOC) simulation environment
+  designed to evaluate agent-based decision-making in cybersecurity scenarios.
+
+entry_point: server.app:app
+benchmark: soc-openenv
+max_steps: 20
+
+tags:
+  - cybersecurity
+  - soc
+  - intrusion-detection
+  - reinforcement-learning
+  - openenv
+
+observation_space:
+  type: object
+  required:
+    - event
+    - timestamp
+    - ip
+    - level
+    - step
+    - difficulty
+  properties:
+    event:
+      type: string
+    timestamp:
+      type: string
+      format: date-time
+    ip:
+      type: string
+    query:
+      type: string
+    file:
+      type: string
+    level:
+      type: string
+      enum: [INFO, WARNING, CRITICAL]
+    step:
+      type: integer
+    difficulty:
+      type: string
+      enum: [easy, medium, hard]
+
+action_space:
+  type: string
+  enum: [normal, suspicious, attack]
+  description: Classification of the observed event.
+
+reward:
+  range: [-2.0, 1.5]
+  normalized_score: true
+  components:
+    true_positive: 1.0
+    early_detection_bonus: 0.5
+    false_positive_penalty: -1.0
+    missed_attack_penalty: -2.0
+
+tasks:
+  - id: soc-easy-bruteforce
+    name: Easy - Brute Force Detection
+    difficulty: easy
+    description: Detect repeated failed login attempts from the same IP.
+    success_threshold: 0.8
+    max_steps: 10
+
+  - id: soc-medium-sqli
+    name: Medium - SQL Injection Detection
+    difficulty: medium
+    description: Identify SQL injection attempts within mixed traffic.
+    success_threshold: 0.75
+    max_steps: 15
+
+  - id: soc-hard-apt
+    name: Hard - Multi-Stage Attack Detection
+    difficulty: hard
+    description: Detect complex multi-stage cyber attacks.
+    success_threshold: 0.7
+    max_steps: 20
+
+evaluation:
+  metrics:
+    - name: normalized_score
+    - name: accuracy
+    - name: false_positive_rate
+    - name: missed_attack_rate
+    - name: early_detection_bonus
+  weights:
+    normalized_score: 0.3
+    accuracy: 0.4
+    false_positive_rate: 0.1
+    missed_attack_rate: 0.1
+    early_detection_bonus: 0.1
+
+environment_features:
+  - multi-step attack simulation
+  - context-aware detection
+  - deterministic behavior
+  - realistic SOC logs
+  - reward shaping
+  - reproducible scenarios
+  - configurable attack patterns

@@ -1,0 +1,40 @@
+[project]
+name = "soc-openenv"
+version = "0.1.0"
+description = "Deterministic SOC simulation environment for OpenEnv"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Team RookieX" }
+]
+license = { text = "MIT" }
+keywords = ["openenv", "cybersecurity", "soc", "reinforcement-learning"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Framework :: FastAPI",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "fastapi==0.110.0",
+    "uvicorn==0.29.0",
+    "pydantic==2.6.4",
+    "requests==2.31.0",
+    "openai==2.7.2",
+    "python-dotenv==1.0.1",
+    "openenv-core==0.2.0",
+    "openenv==0.1.13"
+]
+
+[project.scripts]
+server = "server.app:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["server*", "env*"]
