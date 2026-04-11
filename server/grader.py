@@ -1,21 +1,22 @@
-# server/grader.py
+"""
+server/grader.py
+
+Grader ensuring all task scores lie within the safe interval [0.05, 0.95].
+"""
 
 from typing import List, Dict
 
-EPS = 1e-3  # Ensures values are strictly within (0, 1)
+MIN_SCORE = 0.05
+MAX_SCORE = 0.95
 
 
 def _clip(value: float) -> float:
-    """Clip values to the open interval (0, 1)."""
-    if value <= 0.0:
-        return EPS
-    if value >= 1.0:
-        return 1.0 - EPS
-    return float(value)
+    """Clip values to [0.05, 0.95]."""
+    return max(MIN_SCORE, min(MAX_SCORE, float(value)))
 
 
 def _detect_attack(log: Dict, failed_login_count: Dict[str, int], suspicious_ips: set) -> str:
-    """Replicates SOCEnv's ground-truth logic."""
+    """Replicates SOCEnv ground truth logic."""
     event = str(log.get("event", "")).lower()
     level = str(log.get("level", "")).lower()
     message = str(log).lower()
@@ -44,16 +45,15 @@ def _detect_attack(log: Dict, failed_login_count: Dict[str, int], suspicious_ips
 
 
 def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
-    """Evaluate episode performance with all metrics strictly in (0, 1)."""
+    """Evaluate agent performance with safe score bounds."""
 
     if not actions or not logs:
-        mid = 0.5
         return {
-            "normalized_score": mid,
-            "accuracy": mid,
-            "false_positive_rate": mid,
-            "missed_attack_rate": mid,
-            "early_detection_bonus": mid,
+            "normalized_score": 0.5,
+            "accuracy": 0.5,
+            "false_positive_rate": 0.5,
+            "missed_attack_rate": 0.5,
+            "early_detection_bonus": 0.5,
         }
 
     total = min(len(actions), len(logs))
@@ -63,7 +63,7 @@ def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
     early_detection = 0
     attack_count = 0
 
-    failed_login_count: Dict[str, int] = {}
+    failed_login_count = {}
     suspicious_ips = set()
 
     for i in range(total):
@@ -97,7 +97,6 @@ def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
         + 0.10 * early_detection_bonus
     )
 
-    # Final clipping to ensure strict bounds
     return {
         "normalized_score": _clip(normalized_score),
         "accuracy": _clip(accuracy),

@@ -124,7 +124,7 @@ The SOC-OpenEnv environment was evaluated using the provided `inference.py` scri
 | Difficulty | Score |
 |-----------|------|
 | Easy      | 0.90 |
-| Medium    | 0.92 |
+| Medium    | 0.90 |
 | Hard      | 0.90 |
 
 ### 🔍 Notes
@@ -142,7 +142,7 @@ The SOC-OpenEnv environment was evaluated using the provided `inference.py` scri
 
 Baseline Scores:
 Easy: 0.90
-Medium: 0.92
+Medium: 0.90
 Hard: 0.90
 
 ## Reward and Evaluation Design
