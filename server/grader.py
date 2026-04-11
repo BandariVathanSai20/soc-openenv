@@ -1,38 +1,79 @@
 """
 server/grader.py
 
-Grader for evaluating agent performance in the SOC-OpenEnv environment.
-Ensures all metrics fall strictly within the open interval (0, 1).
+Deterministic grader for the SOC-OpenEnv environment.
+Maintains original performance while ensuring scores are strictly within (0, 1).
 """
 
-from typing import List, Dict
+from typing import List, Dict, Set
 
 
-def _clip_score(value: float, eps: float = 1e-6) -> float:
+# ---------------------------------------------------------------------
+# Ground Truth Detection
+# ---------------------------------------------------------------------
+def detect_ground_truth(
+    log: Dict,
+    failed_login_count: Dict[str, int],
+    suspicious_ips: Set[str]
+) -> str:
+    ip = log.get("ip")
+
+    # Brute force detection
+    if log.get("event") == "login_failed":
+        failed_login_count[ip] = failed_login_count.get(ip, 0) + 1
+        if failed_login_count[ip] >= 3:
+            return "attack"
+        return "suspicious"
+
+    # SQL Injection
+    if "OR 1=1" in str(log):
+        return "attack"
+
+    # Critical access
+    if log.get("level") == "CRITICAL":
+        return "attack"
+
+    # Port scan
+    if log.get("event") == "port_scan":
+        suspicious_ips.add(ip)
+        return "suspicious"
+
+    # Suspicious continuation
+    if ip in suspicious_ips:
+        return "suspicious"
+
+    return "normal"
+
+
+# ---------------------------------------------------------------------
+# Step Evaluation
+# ---------------------------------------------------------------------
+def evaluate_step(action: str, actual: str) -> float:
     """
-    Ensure the score lies strictly within the open interval (0, 1).
+    Step score strictly inside (0, 1).
+    Preserves original performance.
     """
-    if value <= 0.0:
-        return eps
-    if value >= 1.0:
-        return 1.0 - eps
-    return value
+    action = action.lower()
+    actual = actual.lower()
+
+    if action == actual:
+        return 0.99  # High reward for correct classification
+
+    if action == "suspicious" and actual == "attack":
+        return 0.5   # Partial credit
+
+    return 0.01      # Minimal reward, never zero
 
 
+# ---------------------------------------------------------------------
+# Episode Evaluation
+# ---------------------------------------------------------------------
 def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
     """
-    Evaluate the agent's performance over an episode.
-
-    Returns a dictionary with:
-    - normalized_score
-    - accuracy
-    - false_positive_rate
-    - missed_attack_rate
-    - early_detection_bonus
-    All values are guaranteed to be strictly within (0, 1).
+    Compute deterministic episode metrics.
+    Returns a dictionary compatible with OpenEnv validators.
     """
 
-    # Handle empty inputs gracefully
     if not actions or not logs:
         return {
             "normalized_score": 0.5,
@@ -42,48 +83,68 @@ def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
             "early_detection_bonus": 0.5,
         }
 
-    total = min(len(actions), len(logs))
+    total_steps = min(len(actions), len(logs))
+    total_score = 0.0
+
+    failed_login_count: Dict[str, int] = {}
+    suspicious_ips: Set[str] = set()
+    early_detected = False
     correct = 0
     false_positives = 0
     missed_attacks = 0
-    early_detection = 0
+    attack_count = 0
 
-    # Simple heuristic labeling based on log events
-    for i in range(total):
-        log = logs[i]
-        action = actions[i].lower()
+    for i, (action, log) in enumerate(zip(actions, logs)):
+        actual = detect_ground_truth(
+            log, failed_login_count, suspicious_ips
+        )
 
-        event = log.get("event", "")
-        actual_label = "attack" if "failed" in event else "normal"
+        step_score = evaluate_step(action, actual)
 
-        if action == actual_label:
+        if action.lower() == actual:
             correct += 1
-            if actual_label == "attack":
-                early_detection += 1
-        else:
-            if action in {"attack", "suspicious"} and actual_label == "normal":
-                false_positives += 1
-            if action == "normal" and actual_label == "attack":
-                missed_attacks += 1
 
-    accuracy = correct / total
-    false_positive_rate = false_positives / total
-    missed_attack_rate = missed_attacks / total
-    early_detection_bonus = early_detection / total
+        if actual == "attack":
+            attack_count += 1
+            if action.lower() == "attack" and i <= 2:
+                step_score += 0.1
+                early_detected = True
 
-    # Composite normalized score
-    normalized_score = (
-        0.5 * accuracy
-        + 0.2 * (1 - false_positive_rate)
-        + 0.2 * (1 - missed_attack_rate)
-        + 0.1 * early_detection_bonus
+        if action.lower() in {"attack", "suspicious"} and actual == "normal":
+            false_positives += 1
+
+        if action.lower() == "normal" and actual == "attack":
+            missed_attacks += 1
+
+        # Ensure step score < 1
+        step_score = min(step_score, 0.99)
+        total_score += step_score
+
+    # Final normalized score (similar to original behavior)
+    final_score = total_score / total_steps
+
+    if early_detected:
+        final_score += 0.02
+
+    # Ensure strictly within (0, 1)
+    final_score = max(0.01, min(final_score, 0.99))
+
+    # Additional metrics
+    accuracy = correct / total_steps
+    false_positive_rate = false_positives / total_steps
+    missed_attack_rate = (
+        missed_attacks / attack_count if attack_count > 0 else 0.0
     )
+    early_detection_bonus = 1.0 if early_detected else 0.0
 
-    # Clip all metrics to ensure they are strictly within (0, 1)
+    # Clip auxiliary metrics to (0,1)
+    def clip(x):
+        return max(0.01, min(x, 0.99))
+
     return {
-        "normalized_score": _clip_score(normalized_score),
-        "accuracy": _clip_score(accuracy),
-        "false_positive_rate": _clip_score(false_positive_rate),
-        "missed_attack_rate": _clip_score(missed_attack_rate),
-        "early_detection_bonus": _clip_score(early_detection_bonus),
+        "normalized_score": final_score,
+        "accuracy": clip(accuracy),
+        "false_positive_rate": clip(false_positive_rate),
+        "missed_attack_rate": clip(missed_attack_rate),
+        "early_detection_bonus": clip(early_detection_bonus),
     }
