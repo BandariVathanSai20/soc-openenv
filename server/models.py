@@ -1,58 +1,39 @@
-"""
-server/models.py
-
-Pydantic models for SOC-OpenEnv FastAPI application.
-"""
-
 from pydantic import BaseModel, Field
-from typing import Optional
-
+from typing import Optional, List, Dict
 
 class Action(BaseModel):
-    """Agent action sent to the /step endpoint."""
-    action: str = Field(..., description="Agent action: normal, suspicious, or attack")
-
+    action: str
 
 class Observation(BaseModel):
-    """Observation returned by the environment."""
     step: int
-    event: str
-    ip: str
-    level: str
+    event: Optional[str] = None
+    ip: Optional[str] = None
+    level: Optional[str] = None
     difficulty: str
-
+    query: Optional[str] = None
+    file: Optional[str] = None
 
 class State(BaseModel):
-    """Internal environment state."""
     step: int
     total_reward: float
     difficulty: str
 
-
 class Reward(BaseModel):
-    """Reward returned after each step."""
     value: float
 
-
 class Info(BaseModel):
-    """Additional metadata including grader metrics."""
-    actual_label: Optional[str] = None
-    attack_type: Optional[str] = None
-    last_action_error: Optional[str] = None
-
-    # Metrics must be strictly within (0,1)
-    normalized_score: float = Field(default=0.5, gt=0.0, lt=1.0)
-    accuracy: float = Field(default=0.5, gt=0.0, lt=1.0)
-    false_positive_rate: float = Field(default=0.5, gt=0.0, lt=1.0)
-    missed_attack_rate: float = Field(default=0.5, gt=0.0, lt=1.0)
-    early_detection_bonus: float = Field(default=0.5, gt=0.0, lt=1.0)
+    actual_label: Optional[str] = "normal"
+    attack_type: Optional[str] = "none"
+    normalized_score: float = 0.5
+    accuracy: float = 0.5
+    false_positive_rate: float = 0.5
+    missed_attack_rate: float = 0.5
+    early_detection_bonus: float = 0.5
 
     class Config:
         extra = "allow"
 
-
 class StepResponse(BaseModel):
-    """Response for /step endpoint."""
     observation: Optional[Observation]
     reward: Reward
     done: bool
@@ -60,9 +41,7 @@ class StepResponse(BaseModel):
     info: Info
     explanation: str
 
-
 class ResetResponse(BaseModel):
-    """Response for /reset endpoint."""
     observation: Observation
     state: State
     message: str

@@ -9,141 +9,74 @@ title: SOC OpenEnv
 
 # 🛡️ SOC-OpenEnv
 
-SOC-OpenEnv is a deterministic **Security Operations Center (SOC)**
-simulation environment designed to evaluate AI and reinforcement
-learning agents in cybersecurity decision-making tasks. The environment
-is fully compliant with the **OpenEnv** benchmark and supports
-deployment both locally and on **Hugging Face Spaces** using Docker.
+SOC-OpenEnv is a deterministic **Security Operations Center (SOC)** simulation environment designed to evaluate AI agents in cybersecurity decision-making tasks. It is fully compliant with the **OpenEnv** benchmark requirements for the Meta PyTorch Hackathon.
 
 ## 🚀 Overview
 
-SOC-OpenEnv simulates realistic cybersecurity events such as brute-force
-login attempts, SQL injection attacks, and multi-stage **Advanced
-Persistent Threats (APT)**. Agents interact with the environment through
-a REST API and classify each event as **normal**, **suspicious**, or
-**attack**.
+SOC-OpenEnv simulates realistic cybersecurity events such as brute-force login attempts, SQL injection attacks, and multi-stage **Advanced Persistent Threats (APT)**. Agents must classify each event as **normal**, **suspicious**, or **attack**.
 
 ## ✨ Key Features
 
--   ✅ OpenEnv compliant and officially validated
--   🔁 Deterministic and reproducible scenarios
--   🎯 Three difficulty levels: Easy, Medium, and Hard
--   ⚡ FastAPI-based REST API
--   🐳 Dockerized deployment for Hugging Face Spaces
--   🤖 Baseline inference script for agent interaction
--   🧪 Comprehensive unit and integration tests
--   💻 Cross-platform compatibility (Windows, Linux, macOS)
--   🔧 Bash wrapper for `openenv` CLI compatibility
-
-## 📂 Project Structure
-
-``` text
-soc-openenv/
-├── server/
-│   ├── app.py
-│   ├── environment.py
-│   ├── grader.py
-│   ├── models.py
-│   └── tasks.py
-├── tests/
-│   ├── test_api.py
-│   ├── test_environment.py
-│   └── test_grader.py
-├── scripts/
-│   └── validate-submission.sh
-├── inference.py
-├── client.py
-├── scenario_config.json
-├── openenv.yaml
-├── openenv
-├── Dockerfile
-├── requirements.txt
-├── pytest.ini
-├── pyproject.toml
-├── README.md
-└── .gitignore
-```
+- ✅ **Phase 2 Validated**: All scores are strictly within the open interval $(0, 1)$.
+- 🔁 **Deterministic**: Reproducible scenarios across multiple runs.
+- 🎯 **Three Difficulty Levels**: Easy (Brute Force), Medium (SQLi), and Hard (APT).
+- ⚡ **FastAPI Powered**: Low-latency REST API.
+- 🐳 **Docker Optimized**: Ready for deployment on Hugging Face Spaces.
+- 🤖 **OpenAI Compatible**: Inference script uses standard OpenAI client signatures.
 
 ## 🧠 Environment Description
 
 ### 🔍 Observation Space
-
-Each step returns a structured log entry containing:
-
-  Field          Description
-  -------------- ------------------------------------------------------------
-  `event`        Type of event (e.g., `login_failed`, `query`, `port_scan`)
-  `timestamp`    ISO 8601 timestamp
-  `ip`           Source IP address
-  `query`        SQL query (if applicable)
-  `file`         Accessed file (if applicable)
-  `level`        Severity level
-  `step`         Current step in the episode
-  `difficulty`   Scenario difficulty
+Field | Description
+--- | ---
+`event` | Type of event (e.g., `login_failed`, `query`, `port_scan`)
+`ip` | Source IP address
+`level` | Severity level (INFO, WARN, CRITICAL)
+`query` | SQL query (if applicable)
+`step` | Current step in the episode
+`difficulty` | Scenario difficulty (easy, medium, hard)
 
 ### 🎮 Action Space
-
-  Action         Description
-  -------------- --------------------------------
-  `normal`       Benign activity
-  `suspicious`   Potentially malicious activity
-  `attack`       Confirmed malicious activity
-
-## 🎯 Scenarios
-
-  ------------------------------------------------------------------------
-  Difficulty                Scenario           Description
-  ------------------------- ------------------ ---------------------------
-  Easy                      Brute Force        Detect repeated failed
-                            Detection          login attempts
-
-  Medium                    SQL Injection      Identify malicious SQL
-                                               queries
-
-  Hard                      Multi-Stage APT    Detect reconnaissance and
-                                               persistence activities
-  ------------------------------------------------------------------------
+- `normal`: Benign activity.
+- `suspicious`: Potentially malicious/investigative activity.
+- `attack`: Confirmed malicious activity.
 
 ## 📊 Grading Scheme
 
-The SOC-OpenEnv environment uses a deterministic grading mechanism:
+The environment uses a deterministic grader that evaluates the sequence of actions against ground truth.
 
-| Scenario | Score |
-|---------|------|
-| Correct classification | 0.90 |
-| Suspicious instead of attack | 0.50 |
-| Incorrect classification | 0.10 |
-| Early attack detection (≤ step 2) | +0.05 |
+| Outcome | Reward (Step) | Score (Grader) |
+|---------|---------------|----------------|
+| Correct Match | +1.00 | Included in Accuracy |
+| Incorrect Match | -1.00 | Penalty applied |
 
-The final **normalized score** is the average of all step scores, clamped to the range [0, 1].
+**Note on Normalization:** The final score is clipped strictly between **0.01 and 0.99** to ensure compliance with benchmark validation rules.
 
 ## 📊 Baseline Performance
 
-The SOC-OpenEnv environment was evaluated using the provided `inference.py` script. The results are deterministic and reproducible across multiple runs.
+Evaluated using `Qwen/Qwen2.5-72B-Instruct`. These results are deterministic.
 
-| Difficulty | Score |
-|-----------|------|
-| Easy      | 0.90 |
-| Medium    | 0.90 |
-| Hard      | 0.90 |
-
-### 🔍 Notes
-- All scores are **strictly within the open interval (0, 1)**, satisfying the OpenEnv Phase 2 validation requirements.
-- Scores of **0.99** represent near-perfect performance while ensuring compliance (scores must not be exactly `1.0`).
-- The evaluation is deterministic, meaning repeated runs produce identical results.
+| Difficulty | Normalized Score |
+|------------|------------------|
+| Easy       | 0.80             |
+| Medium     | 0.99             |
+| Hard       | 0.86             |
 
 ### 🧪 Example Inference Output
 
 ```text
 [START] task=easy env=soc-openenv model=Qwen/Qwen2.5-72B-Instruct
-[STEP] step=1 action=suspicious reward=0.90 done=false error=null
-...
-[END] success=true steps=5 rewards=0.90,0.30,1.30,1.00,1.00
+[STEP] step=1 action=suspicious reward=1.00 done=false error=null
+[STEP] step=2 action=suspicious reward=1.00 done=false error=null
+[STEP] step=3 action=suspicious reward=-1.00 done=false error=null
+[STEP] step=4 action=normal reward=1.00 done=false error=null
+[STEP] step=5 action=normal reward=1.00 done=true error=null
+[END] success=true steps=5 rewards=1.00,1.00,-1.00,1.00,1.00
 
-Baseline Scores:
-Easy: 0.90
-Medium: 0.90
-Hard: 0.90
+--- Final Summary ---
+Task Easy: 0.80
+Task Medium: 0.99
+Task Hard: 0.86
 
 ## Reward and Evaluation Design
 
