@@ -3,20 +3,34 @@ import uvicorn
 from fastapi import FastAPI, Body, HTTPException
 from server.environment import SOCEnv
 from server.models import Action, StepResponse, ResetResponse, Info, Reward, State, Observation
-from server.grader import evaluate_episode
+from server.grader import evaluate_episode, _strict_clip
 
-app = FastAPI()
+app = FastAPI(title="SOC-OpenEnv Server")
 env = SOCEnv()
 
+@app.get("/")
+def home():
+    """Root endpoint to show the API is alive and prevent 404."""
+    return {
+        "message": "SOC-OpenEnv API is running",
+        "status": "active",
+        "version": "1.0.0"
+    }
+
 @app.get("/health")
-def health(): return {"status": "ok"}
+def health():
+    return {"status": "ok"}
 
 @app.post("/reset", response_model=ResetResponse)
 def reset(data: dict = Body(None)):
     diff = data.get("difficulty", "easy") if data else "easy"
     env.difficulty = diff
     obs = env.reset()
-    return ResetResponse(observation=Observation(**obs), state=State(**env.state()), message="OK")
+    return ResetResponse(
+        observation=Observation(**obs), 
+        state=State(**env.state()), 
+        message="OK"
+    )
 
 @app.post("/step", response_model=StepResponse)
 def step(req: Action):
@@ -33,7 +47,11 @@ def step(req: Action):
             reward=Reward(value=reward),
             done=done,
             state=State(**env.state()),
-            info=Info(actual_label=info_dict["actual_label"], attack_type=info_dict["attack_type"], **metrics),
+            info=Info(
+                actual_label=info_dict["actual_label"], 
+                attack_type=info_dict["attack_type"], 
+                **metrics
+            ),
             explanation="Step processed"
         )
     except ValueError as e:
