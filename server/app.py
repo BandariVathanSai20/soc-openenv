@@ -45,7 +45,9 @@ def step(req: Action):
             explanation="Step processed"
         )
     except ValueError as e:
+        # This catches the ValueError and returns 400
         raise HTTPException(status_code=400, detail=str(e))
+
 
 @app.get("/state")
 def get_state():

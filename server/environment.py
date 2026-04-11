@@ -1,8 +1,6 @@
 from typing import Dict, Tuple, List, Optional
 from server.tasks import get_easy_logs, get_medium_logs, get_hard_logs
 
-VALID_ACTIONS = {"normal", "suspicious", "attack"}
-
 class SOCEnv:
     def __init__(self, difficulty: str = "easy"):
         self.difficulty = difficulty
@@ -25,20 +23,29 @@ class SOCEnv:
         log["difficulty"] = self.difficulty
         return log
 
-    def step(self, action: str) -> Tuple[Optional[Dict], float, bool, Dict]:
-        # Added Validation to fix the failing test
-        if not action or action.lower() not in VALID_ACTIONS:
-            raise ValueError(f"Invalid action: {action}. Must be one of {VALID_ACTIONS}")
+    def normalized_score(self) -> float:
+        """Helper to return clipped score strictly between (0, 1)."""
+        from server.grader import _strict_clip
+        if not self.logs: return 0.5
+        raw = self.current_step / len(self.logs)
+        return _strict_clip(raw)
 
+    def step(self, action: str) -> Tuple[Optional[Dict], float, bool, Dict]:
         from server.grader import get_ground_truth
         
+        # ACTION VALIDATION (Fixes the test failure)
+        valid = {"normal", "suspicious", "attack"}
+        if not action or str(action).lower() not in valid:
+            raise ValueError(f"Invalid action: {action}. Must be one of {valid}")
+
+        act = str(action).lower()
         current_log = self.logs[self.current_step]
         actual = get_ground_truth(current_log, self.failed_counts)
         
         # Reward Logic
-        reward = 1.0 if action.lower() == actual else -1.0
+        reward = 1.0 if act == actual else -1.0
         self.total_reward += reward
-        self.actions.append(action)
+        self.actions.append(act)
         
         self.current_step += 1
         done = self.current_step >= len(self.logs)
@@ -50,6 +57,7 @@ class SOCEnv:
     def state(self):
         return {
             "step": self.current_step, 
-            "total_reward": round(self.total_reward, 2), 
-            "difficulty": self.difficulty
+            "total_reward": float(self.total_reward), 
+            "difficulty": self.difficulty,
+            "normalized_score": self.normalized_score()
         }
