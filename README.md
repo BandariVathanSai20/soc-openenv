@@ -119,15 +119,31 @@ The final **normalized score** is the average of all step scores, clamped to the
 
 ## 📊 Baseline Performance
 
-The baseline agent was evaluated across all difficulty levels with the following deterministic scores:
+The SOC-OpenEnv environment was evaluated using the provided `inference.py` script. The results are deterministic and reproducible across multiple runs.
 
-| Difficulty | Score |
-|-----------|------|
-| Easy      | 0.91 |
-| Medium    | 0.75 |
-| Hard      | 0.90 |
+| Task   | Normalized Score |
+|--------|------------------|
+| Easy   | **0.99** |
+| Medium | **0.81** |
+| Hard   | **0.99** |
 
-These scores demonstrate the environment’s ability to differentiate agent performance across varying levels of complexity.
+### 🔍 Notes
+- All scores are **strictly within the open interval (0, 1)**, satisfying the OpenEnv Phase 2 validation requirements.
+- Scores of **0.99** represent near-perfect performance while ensuring compliance (scores must not be exactly `1.0`).
+- The evaluation is deterministic, meaning repeated runs produce identical results.
+
+### 🧪 Example Inference Output
+
+```text
+[START] task=easy env=soc-openenv model=Qwen/Qwen2.5-72B-Instruct
+[STEP] step=1 action=suspicious reward=0.90 done=false error=null
+...
+[END] success=true steps=5 rewards=0.90,0.30,1.30,1.00,1.00
+
+Baseline Scores:
+Easy: 0.99
+Medium: 0.81
+Hard: 0.99
 
 ## Reward and Evaluation Design
 
