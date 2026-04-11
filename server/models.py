@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
+from pydantic import BaseModel
+from typing import Optional
 
 class Action(BaseModel):
     action: str
@@ -23,15 +23,11 @@ class Reward(BaseModel):
 
 class Info(BaseModel):
     actual_label: Optional[str] = "normal"
-    attack_type: Optional[str] = "none"
     normalized_score: float = 0.5
     accuracy: float = 0.5
     false_positive_rate: float = 0.5
     missed_attack_rate: float = 0.5
     early_detection_bonus: float = 0.5
-
-    class Config:
-        extra = "allow"
 
 class StepResponse(BaseModel):
     observation: Optional[Observation]

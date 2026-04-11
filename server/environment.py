@@ -1,6 +1,8 @@
 from typing import Dict, Tuple, List, Optional
 from server.tasks import get_easy_logs, get_medium_logs, get_hard_logs
 
+VALID_ACTIONS = {"normal", "suspicious", "attack"}
+
 class SOCEnv:
     def __init__(self, difficulty: str = "easy"):
         self.difficulty = difficulty
@@ -24,11 +26,16 @@ class SOCEnv:
         return log
 
     def step(self, action: str) -> Tuple[Optional[Dict], float, bool, Dict]:
+        # Added Validation to fix the failing test
+        if not action or action.lower() not in VALID_ACTIONS:
+            raise ValueError(f"Invalid action: {action}. Must be one of {VALID_ACTIONS}")
+
         from server.grader import get_ground_truth
         
         current_log = self.logs[self.current_step]
         actual = get_ground_truth(current_log, self.failed_counts)
         
+        # Reward Logic
         reward = 1.0 if action.lower() == actual else -1.0
         self.total_reward += reward
         self.actions.append(action)
@@ -41,4 +48,8 @@ class SOCEnv:
         return next_obs, float(reward), done, info
 
     def state(self):
-        return {"step": self.current_step, "total_reward": self.total_reward, "difficulty": self.difficulty}
+        return {
+            "step": self.current_step, 
+            "total_reward": round(self.total_reward, 2), 
+            "difficulty": self.difficulty
+        }

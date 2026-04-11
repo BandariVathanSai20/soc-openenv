@@ -1,7 +1,6 @@
 from typing import List, Dict
 
 def _clip(v: float) -> float:
-    """Ensure score is strictly within (0, 1) for Phase 2 validation."""
     return max(0.01, min(0.99, float(v)))
 
 def get_ground_truth(log: Dict, failed_counts: Dict[str, int]) -> str:
@@ -14,26 +13,19 @@ def get_ground_truth(log: Dict, failed_counts: Dict[str, int]) -> str:
         return "attack"
     if event == "login_failed":
         failed_counts[ip] = failed_counts.get(ip, 0) + 1
-        # 3rd fail triggers attack
         return "attack" if failed_counts[ip] >= 3 else "suspicious"
     if event == "port_scan":
         return "suspicious"
     return "normal"
 
 def evaluate_episode(actions: List[str], logs: List[Dict]) -> Dict[str, float]:
-    if not actions or not logs:
-        return {k: 0.5 for k in ["normalized_score", "accuracy", "false_positive_rate", "missed_attack_rate", "early_detection_bonus"]}
-
+    if not actions: return {k: 0.5 for k in ["normalized_score", "accuracy", "false_positive_rate", "missed_attack_rate", "early_detection_bonus"]}
     correct = 0
     failed_counts = {}
-    total = min(len(actions), len(logs))
-
     for a, l in zip(actions, logs):
-        gt = get_ground_truth(l, failed_counts)
-        if a.lower() == gt:
+        if a.lower() == get_ground_truth(l, failed_counts):
             correct += 1
-
-    acc = correct / total
+    acc = correct / len(actions)
     return {
         "normalized_score": _clip(acc),
         "accuracy": _clip(acc),
